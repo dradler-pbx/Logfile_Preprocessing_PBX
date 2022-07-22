@@ -1,3 +1,4 @@
+import time
 import tkinter as tk
 from tkinter import ttk
 
@@ -69,6 +70,7 @@ def read_logfiles():
     check_logfiles(logfiles)
 
     read_txt.set('Reading {} logfiles.'.format(len(logfiles)))
+
     df_list = []
 
     for file in logfiles:
@@ -92,6 +94,9 @@ def read_logfiles():
     # activate write button
     write_btn.state(["!disabled"])
 
+    # write completion message
+    read_txt.set('{} logfiles read.'.format(len(logfiles)))
+
 
 def write_csv():
     first_timestamp = data['timestamp_UNIXms'].iloc[0].strftime('%y%m%d_%H%M%S')
@@ -103,6 +108,7 @@ def write_csv():
 
 tk_root = tk.Tk()
 tk_root.geometry("400x400")
+tk_root.title('PBX Logfile Preprocessing')
 
 read_txt = tk.StringVar(tk_root, value='Click analyse...')
 
