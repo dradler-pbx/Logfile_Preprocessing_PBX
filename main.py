@@ -183,11 +183,11 @@ def export_data():
 
         # check if EXCEL timestamp
         if int_add_EXCEL_UTC_timestamp.get() == 1:
-            data['timestamp_EXCEL'] = (((data['timestamp_UTC'] - pd.Timestamp("1970-01-01",tz='UTC')) // pd.Timedelta('1s')) / 86400) + 25569
+            data['timestamp_EXCEL_UTC'] = (((data['timestamp_UTC'] - pd.Timestamp("1970-01-01",tz='UTC')) // pd.Timedelta('1s')) / 86400) + 25569
 
-        if int_add_EXCEL_MET_timestamp.get() == 1:
-            data['timestamp_EXCEL_UTC'] = (((data['timestamp_UTC'].dt.tz_convert('Europe/Vienna') - pd.Timestamp("1970-01-01",tz='UTC')) // pd.Timedelta('1s')) / 86400) + 25569
-
+        # # check if EXCEL MET timestamp
+        # if int_add_EXCEL_MET_timestamp.get() == 1:
+        #     data['timestamp_EXCEL_MET-MEST'] = (((data['timestamp_UTC'] - pd.Timestamp("1970-01-01",tz='UTC')) // pd.Timedelta('1s') + data['timestamp_UTC'].dt.tz_convert('Europe/Vienna').utcoffset()) / 86400) + 25569
 
         # write csv file
         data.to_csv(filename, index=False)
@@ -269,6 +269,7 @@ cb_add_EXCEL_timestamp.grid(row=1, column=0, sticky='W')
 int_add_EXCEL_MET_timestamp = tk.IntVar(value=0)
 cb_add_EXCEL_timestamp = ttk.Checkbutton(export_option_frame, text='Add MS EXCEL (MET/MEST) timestamp', variable=int_add_EXCEL_MET_timestamp)
 cb_add_EXCEL_timestamp.grid(row=2, column=0, sticky='W')
+cb_add_EXCEL_timestamp.configure(state="disabled")
 
 int_convert_MET_timestamp = tk.IntVar(value=0)
 cb_add_MET_timestamp = ttk.Checkbutton(export_option_frame, text='Add string MET/MEST timestamp', variable=int_convert_MET_timestamp)
