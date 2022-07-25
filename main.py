@@ -121,7 +121,6 @@ def read_logfiles():
         check_label_text.set('\n'.join(msg_list))
 
         df_list = []
-        data = pd.DataFrame()
 
         for file in dev_info[dev]['files']:
             filepath = config["logfile_folder"] + file
@@ -134,8 +133,10 @@ def read_logfiles():
         # exchange the header with clear name header
         data.columns = exchange_header(data.columns, dev_info[dev]['lf'])
 
-        # convert timestamp to datetime
+        # convert timestamp to datetime and rename the column
         data['timestamp_UNIXms'] = pd.to_datetime(data['timestamp_UNIXms'], unit='ms')
+        data.rename(columns={'timestamp_UNIXms': 'timestamp_UTC'}, inplace=True)
+        data['timestamp_UTC'] = data['timestamp_UTC'].dt.tz_localize('UTC')
 
         # replace 'T' and 'F' with True and False and Nan with np.nan
         data.replace({'T': True, 'F': False, 'NaN': np.nan}, inplace=True)
@@ -152,7 +153,7 @@ def read_logfiles():
     check_label_text.set('\n'.join(msg_list))
 
     # # write describe analysis of logfiles to check label
-    # describe_str = print_to_string(data['timestamp_UNIXms'].diff().astype('timedelta64[ms]').describe(percentiles=[0.05, 0.25, 0.5, 0.75, 0.95]))
+    # describe_str = print_to_string(data['timestamp_UTC'].diff().astype('timedelta64[ms]').describe(percentiles=[0.05, 0.25, 0.5, 0.75, 0.95]))
     # msg = msg + '\nTimestamp difference analysis (in milliseconds):\n'
     # msg = msg + describe_str
     # check_label_text.set(msg)
@@ -166,10 +167,29 @@ def export_data():
     export_text_list = []
     for dev in dev_info:
         data = dev_info[dev]['data']
-        first_timestamp = data['timestamp_UNIXms'].iloc[0].strftime('%y%m%d_%H%M%S')
-        last_timestamp = data['timestamp_UNIXms'].iloc[-1].strftime('%y%m%d_%H%M%S')
 
+        # generate the filename
+        first_timestamp = data['timestamp_UTC'].iloc[0].strftime('%y%m%d_%H%M%S')
+        last_timestamp = data['timestamp_UTC'].iloc[-1].strftime('%y%m%d_%H%M%S')
         filename = "-".join([dev_info[dev]['type'], dev_info[dev]['sn'], 'export', first_timestamp, 'to', last_timestamp]) + ".csv"
+
+        # check if MET timestamp conversion
+        if int_convert_MET_timestamp.get() == 1:
+            data['timestamp_MET-MEST'] = data['timestamp_UTC'].dt.tz_convert('Europe/Vienna')
+
+        # check if UNIX int to be added
+        if int_add_UNIX_int.get() == 1:
+            data['timestamp_UNIX'] = (data['timestamp_UTC'] - pd.Timestamp("1970-01-01", tz='UTC')) // pd.Timedelta('1s')
+
+        # check if EXCEL timestamp
+        if int_add_EXCEL_UTC_timestamp.get() == 1:
+            data['timestamp_EXCEL'] = (((data['timestamp_UTC'] - pd.Timestamp("1970-01-01",tz='UTC')) // pd.Timedelta('1s')) / 86400) + 25569
+
+        if int_add_EXCEL_MET_timestamp.get() == 1:
+            data['timestamp_EXCEL_UTC'] = (((data['timestamp_UTC'].dt.tz_convert('Europe/Vienna') - pd.Timestamp("1970-01-01",tz='UTC')) // pd.Timedelta('1s')) / 86400) + 25569
+
+
+        # write csv file
         data.to_csv(filename, index=False)
 
         export_text_list.append(filename + ' exported.')
@@ -188,7 +208,7 @@ root.geometry("800x600")
 root.columnconfigure(0, weight=6)
 root.rowconfigure(0)
 root.rowconfigure(2, weight=3)
-root.rowconfigure(4, weight=2)
+root.rowconfigure(4)
 root.rowconfigure(6)
 
 check_label_text = tk.StringVar(value='Check label text...')
@@ -224,11 +244,6 @@ open_lf_btn.pack(fill="both")
 
 config_btn = ttk.Button(btn_frame, text="Open config", style='btn.TButton', command=open_config)
 config_btn.pack(fill="both")
-# config_btn.configure(state='disabled')
-
-# reload_config_btn = ttk.Button(btn_frame, text="Reload config", style='btn.TButton', command=reload_config_file)
-# reload_config_btn.pack(fill="both")
-# reload_config_btn.configure(state='disabled')
 
 check_btn = ttk.Button(btn_frame, text="Check files", style='btn.TButton', command=check_logfiles)
 check_btn.pack(fill="both")
@@ -243,8 +258,21 @@ sep2.grid(row=3, column=0, columnspan=2, sticky="EW")
 export_option_frame = ttk.Frame(root)
 export_option_frame.grid(column=0, row=4, sticky="NSEW", columnspan=2)
 
-export_options_txt = ttk.Label(export_option_frame, text="export_options")
-export_options_txt.pack(fill="both")
+int_add_UNIX_int = tk.IntVar(value=0)
+cb_add_UNIX_int = ttk.Checkbutton(export_option_frame, text='Add UNIX (time since epoch)', variable=int_add_UNIX_int)
+cb_add_UNIX_int.grid(row=0, column=0, sticky='W')
+
+int_add_EXCEL_UTC_timestamp = tk.IntVar(value=0)
+cb_add_EXCEL_timestamp = ttk.Checkbutton(export_option_frame, text='Add MS EXCEL (UTC) timestamp', variable=int_add_EXCEL_UTC_timestamp)
+cb_add_EXCEL_timestamp.grid(row=1, column=0, sticky='W')
+
+int_add_EXCEL_MET_timestamp = tk.IntVar(value=0)
+cb_add_EXCEL_timestamp = ttk.Checkbutton(export_option_frame, text='Add MS EXCEL (MET/MEST) timestamp', variable=int_add_EXCEL_MET_timestamp)
+cb_add_EXCEL_timestamp.grid(row=2, column=0, sticky='W')
+
+int_convert_MET_timestamp = tk.IntVar(value=0)
+cb_add_MET_timestamp = ttk.Checkbutton(export_option_frame, text='Add string MET/MEST timestamp', variable=int_convert_MET_timestamp)
+cb_add_MET_timestamp.grid(row=3, column=0, sticky='W')
 
 export_btn_frame = ttk.Frame(root, style='btn_frame.TFrame')
 export_btn_frame.grid(column=1, row=5, sticky="NSEW")
