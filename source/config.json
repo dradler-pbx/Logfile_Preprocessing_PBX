@@ -1,4 +1,4 @@
 {
-  "logfile_folder": "logfiles\\",
+  "logfile_folder": "logfiles/",
   "logfile_def_file": "source\\logfile_def.json"
 }

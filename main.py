@@ -14,12 +14,20 @@ import io
 data = pd.DataFrame()
 dev_info = {}
 logfiles = []
+config = {}
+logfile_def = {}
 
-with open('source/config.json', "r") as f:
-    config = json.load(f)
 
-with open(config['logfile_def_file']) as f:
-    logfile_def = json.load(f)
+def load_config_file():
+    global config, logfile_def
+    with open('source/config.json', "r") as f:
+        config = json.load(f)
+    for key in config:
+        config[key].replace("\\", '/')
+
+
+    with open(config['logfile_def_file']) as f:
+        logfile_def = json.load(f)
 
 
 def text_break(break_before: str = ""):
@@ -32,6 +40,13 @@ def print_to_string(*args, **kwargs):
     contents = output.getvalue()
     output.close()
     return contents
+
+
+def open_config():
+    path = os.getcwd()
+    subprocess.Popen('notepad.exe '+path+'\\source\\config.json').wait()
+    load_config_file()
+    check_label_text.set('Config File updated and reloaded!')
 
 
 def get_logfile_list():
@@ -189,12 +204,16 @@ btn_frame.grid(column=1, row=2, sticky="NSEW")
 open_lf_btn = ttk.Button(btn_frame, text="Open logfile folder", style='btn.TButton', command=open_logfile_folder)
 open_lf_btn.pack(fill="both")
 
+config_btn = ttk.Button(btn_frame, text="Open config", style='btn.TButton', command=open_config)
+config_btn.pack(fill="both")
+# config_btn.configure(state='disabled')
+
+# reload_config_btn = ttk.Button(btn_frame, text="Reload config", style='btn.TButton', command=reload_config_file)
+# reload_config_btn.pack(fill="both")
+# reload_config_btn.configure(state='disabled')
+
 check_btn = ttk.Button(btn_frame, text="Check files", style='btn.TButton', command=check_logfiles)
 check_btn.pack(fill="both")
-
-config_btn = ttk.Button(btn_frame, text="Open config", style='btn.TButton')
-config_btn.pack(fill="both")
-config_btn.configure(state='disabled')
 
 read_btn = ttk.Button(btn_frame, text="Read logfiles", style='btn.TButton', command=read_logfiles)
 read_btn.pack(fill="both")
@@ -220,4 +239,5 @@ export_label = ttk.Label(root, textvariable=export_label_text, style='label.TLab
 export_label.grid(column=0, row=5, sticky="NSEW")
 
 if __name__ == '__main__':
+    load_config_file()
     root.mainloop()
