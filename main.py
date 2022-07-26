@@ -115,6 +115,8 @@ def read_logfiles():
     msg_list.append('READING FILES')
     check_label_text.set('\n'.join(msg_list))
 
+    desc_df = pd.DataFrame()
+
     for dev in dev_info:
         msg_list.append(' ')
         msg_list.append('Reading {}'.format(dev))
@@ -133,10 +135,11 @@ def read_logfiles():
         # exchange the header with clear name header
         data.columns = exchange_header(data.columns, dev_info[dev]['lf'])
 
-        # convert timestamp to datetime and rename the column
+        # convert timestamp to datetime and set as index
         data['timestamp_UNIXms'] = pd.to_datetime(data['timestamp_UNIXms'], unit='ms')
         data.rename(columns={'timestamp_UNIXms': 'timestamp_UTC'}, inplace=True)
         data['timestamp_UTC'] = data['timestamp_UTC'].dt.tz_localize('UTC')
+        data = data.set_index('timestamp_UTC')
 
         # replace 'T' and 'F' with True and False and Nan with np.nan
         data.replace({'T': True, 'F': False, 'NaN': np.nan}, inplace=True)
@@ -144,20 +147,20 @@ def read_logfiles():
         # append the data into the dictionary
         dev_info[dev]['data'] = data
 
+        # append the index to the desc_df
+        desc_df[dev] = data.index.to_series().diff().dt.total_seconds()
+    print(desc_df.head())
+
     # activate write button
     export_btn.state(["!disabled"])
 
     # write completion message
     msg_list.append(text_break())
     msg_list.append('Finished reading.')
+    msg_list.append(text_break())
+    msg_list.append('Timedelta analysis in seconds:')
+    msg_list.append(print_to_string(desc_df.describe()))
     check_label_text.set('\n'.join(msg_list))
-
-    # # write describe analysis of logfiles to check label
-    # describe_str = print_to_string(data['timestamp_UTC'].diff().astype('timedelta64[ms]').describe(percentiles=[0.05, 0.25, 0.5, 0.75, 0.95]))
-    # msg = msg + '\nTimestamp difference analysis (in milliseconds):\n'
-    # msg = msg + describe_str
-    # check_label_text.set(msg)
-    # print(describe_str)
 
     # enable export button
     export_btn.configure(state="!disabled")
@@ -168,29 +171,42 @@ def export_data():
     for dev in dev_info:
         data = dev_info[dev]['data']
 
+
+        # reduce timestep if necessary
+        if int_change_timestep.get() == 1:
+            new_timestep = entry_timestep.get()+'s'
+            data = data.resample(new_timestep).mean()
+
         # generate the filename
-        first_timestamp = data['timestamp_UTC'].iloc[0].strftime('%y%m%d_%H%M%S')
-        last_timestamp = data['timestamp_UTC'].iloc[-1].strftime('%y%m%d_%H%M%S')
-        filename = "-".join([dev_info[dev]['type'], dev_info[dev]['sn'], 'export', first_timestamp, 'to', last_timestamp]) + ".csv"
+        first_timestamp = data.index[0].strftime('%y%m%d_%H%M%S')
+        last_timestamp = data.index[-1].strftime('%y%m%d_%H%M%S')
+        filename = "-".join([dev_info[dev]['type'], dev_info[dev]['sn'], 'export', first_timestamp, 'to', last_timestamp])
 
-        # check if MET timestamp conversion
-        if int_convert_MET_timestamp.get() == 1:
-            data['timestamp_MET-MEST'] = data['timestamp_UTC'].dt.tz_convert('Europe/Vienna')
+        # check if pickle save
+        if int_store_pickle.get() == 1:
+            data.to_pickle(filename+".pkl")
 
-        # check if UNIX int to be added
-        if int_add_UNIX_int.get() == 1:
-            data['timestamp_UNIX'] = (data['timestamp_UTC'] - pd.Timestamp("1970-01-01", tz='UTC')) // pd.Timedelta('1s')
+        if int_store_excel.get() == 1:
+            # check if MET timestamp conversion
+            if int_convert_MET_timestamp.get() == 1:
+                data['timestamp_MET-MEST'] = data.index.tz_convert('Europe/Vienna')
 
-        # check if EXCEL timestamp
-        if int_add_EXCEL_UTC_timestamp.get() == 1:
-            data['timestamp_EXCEL_UTC'] = (((data['timestamp_UTC'] - pd.Timestamp("1970-01-01",tz='UTC')) // pd.Timedelta('1s')) / 86400) + 25569
+            # check if UNIX int to be added
+            if int_add_UNIX_int.get() == 1:
+                data['timestamp_UNIX'] = (data.index - pd.Timestamp("1970-01-01", tz='UTC')) // pd.Timedelta('1s')
 
-        # # check if EXCEL MET timestamp
-        # if int_add_EXCEL_MET_timestamp.get() == 1:
-        #     data['timestamp_EXCEL_MET-MEST'] = (((data['timestamp_UTC'] - pd.Timestamp("1970-01-01",tz='UTC')) // pd.Timedelta('1s') + data['timestamp_UTC'].dt.tz_convert('Europe/Vienna').utcoffset()) / 86400) + 25569
+            # check if EXCEL timestamp
+            if int_add_EXCEL_UTC_timestamp.get() == 1:
+                data['timestamp_EXCEL_UTC'] = (((data.index - pd.Timestamp("1970-01-01", tz='UTC')) // pd.Timedelta('1s')) / 86400) + 25569
 
-        # write csv file
-        data.to_csv(filename, index=False)
+            # check if EXCEL MET timestamp
+            if int_add_EXCEL_MET_timestamp.get() == 1:
+                timestamp_met = data.index[0].tz_convert('Europe/Vienna')
+                utc_offset = timestamp_met.utcoffset().seconds
+                data['timestamp_EXCEL_MET-MEST'] = (((data.index - pd.Timestamp("1970-01-01", tz='UTC')) // pd.Timedelta('1s') + utc_offset) / 86400) + 25569
+
+            # write csv file
+            data.to_csv(filename+".csv")
 
         export_text_list.append(filename + ' exported.')
     export_label_text.set('\n'.join(export_text_list))
@@ -201,8 +217,12 @@ def open_logfile_folder():
     subprocess.Popen(r'explorer '+path+'\\'+config['logfile_folder'])
 
 
+def test_something():
+    pass
+
+
 root = tk.Tk()
-root.geometry("800x600")
+root.geometry("800x800")
 # root.resizable(False, False)
 
 root.columnconfigure(0, weight=6)
@@ -258,6 +278,9 @@ sep2.grid(row=3, column=0, columnspan=2, sticky="EW")
 export_option_frame = ttk.Frame(root)
 export_option_frame.grid(column=0, row=4, sticky="NSEW", columnspan=2)
 
+export_option_frame.columnconfigure(0, weight=1)
+export_option_frame.columnconfigure(1, weight=1)
+
 int_add_UNIX_int = tk.IntVar(value=0)
 cb_add_UNIX_int = ttk.Checkbutton(export_option_frame, text='Add UNIX (time since epoch)', variable=int_add_UNIX_int)
 cb_add_UNIX_int.grid(row=0, column=0, sticky='W')
@@ -269,11 +292,36 @@ cb_add_EXCEL_timestamp.grid(row=1, column=0, sticky='W')
 int_add_EXCEL_MET_timestamp = tk.IntVar(value=0)
 cb_add_EXCEL_timestamp = ttk.Checkbutton(export_option_frame, text='Add MS EXCEL (MET/MEST) timestamp', variable=int_add_EXCEL_MET_timestamp)
 cb_add_EXCEL_timestamp.grid(row=2, column=0, sticky='W')
-cb_add_EXCEL_timestamp.configure(state="disabled")
+# cb_add_EXCEL_timestamp.configure(state="disabled")
 
 int_convert_MET_timestamp = tk.IntVar(value=0)
 cb_add_MET_timestamp = ttk.Checkbutton(export_option_frame, text='Add string MET/MEST timestamp', variable=int_convert_MET_timestamp)
 cb_add_MET_timestamp.grid(row=3, column=0, sticky='W')
+
+int_separate_nonconsecutive = tk.IntVar(value=0)
+cb_separate_nonconsecutive = ttk.Checkbutton(export_option_frame, text="Separate non-consecutive timeseries (timedelta > 10s)", variable=int_separate_nonconsecutive)
+cb_separate_nonconsecutive.grid(row=0, column=1, sticky="W")
+cb_separate_nonconsecutive.configure(state='disabled')
+
+timestep_frame = tk.Frame(export_option_frame)
+timestep_frame.grid(row=1, column=1, sticky="W")
+int_change_timestep = tk.IntVar(value=0)
+cb_change_timestep = ttk.Checkbutton(timestep_frame, text="Change timestep to:  ", variable=int_change_timestep)
+cb_change_timestep.pack(side="left", anchor="w")
+entry_timestep = ttk.Entry(timestep_frame)
+entry_timestep.pack(side="left", anchor="w")
+label_timestep = ttk.Label(timestep_frame, text='seconds')
+label_timestep.pack(side="left")
+
+int_store_pickle = tk.IntVar(value=0)
+cb_store_pickle = ttk.Checkbutton(export_option_frame, text="Export pickle", variable=int_store_pickle)
+cb_store_pickle.grid(row=2, column=1, sticky="W")
+
+int_store_excel = tk.IntVar(value=1)
+cb_store_excel = ttk.Checkbutton(export_option_frame, text="Export excel", variable=int_store_excel)
+cb_store_excel.grid(row=3, column=1, sticky="W")
+
+
 
 export_btn_frame = ttk.Frame(root, style='btn_frame.TFrame')
 export_btn_frame.grid(column=1, row=5, sticky="NSEW")
@@ -281,6 +329,9 @@ export_btn_frame.grid(column=1, row=5, sticky="NSEW")
 export_btn = ttk.Button(export_btn_frame, text="Export logfiles", style='btn.TButton', command=export_data)
 export_btn.pack(fill="both")
 export_btn.configure(state="disabled")
+
+# test_btn = ttk.Button(export_btn_frame, text="test button", command=test_something)
+# test_btn.pack(fill="both")
 
 export_label = ttk.Label(root, textvariable=export_label_text, style='label.TLabel')
 export_label.grid(column=0, row=5, sticky="NSEW")
