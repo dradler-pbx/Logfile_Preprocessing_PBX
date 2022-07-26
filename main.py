@@ -9,6 +9,7 @@ import pandas as pd
 import os
 import subprocess
 import io
+import pickle
 
 
 dev_info = {}
@@ -22,11 +23,14 @@ def load_config_file():
     with open('source/config.json', "r") as f:
         config = json.load(f)
     for key in config:
-        config[key].replace("\\", '/')
+        if type(config[key]) == str:
+            config[key].replace("\\", '/')
 
 
     with open(config['logfile_def_file']) as f:
         logfile_def = json.load(f)
+
+    str_separate_nonconsecutive.set("Separate non-consecutive timeseries (timedelta > {}s)".format(config["consecutive_threshold"]))
 
 
 def text_break(break_before: str = ""):
@@ -149,9 +153,19 @@ def read_logfiles():
 
         # append the index to the desc_df
         desc_df[dev] = data.index.to_series().diff().dt.total_seconds()
-    print(desc_df.head())
 
-    # activate write button
+        # check if non consecutive timeseries
+        idx_diff = data.index.to_series().diff().dt.total_seconds()
+        indices = data[idx_diff > config["consecutive_threshold"]].index
+        # print(data.index[-1])
+        last_idx = pd.Index([data.index[-1]])
+        indices = indices.append([last_idx])
+        dev_info[dev]['non_consecutive'] = indices
+        print(dev_info[dev]['non_consecutive'])
+
+
+
+    # activate export button
     export_btn.state(["!disabled"])
 
     # write completion message
@@ -160,6 +174,8 @@ def read_logfiles():
     msg_list.append(text_break())
     msg_list.append('Timedelta analysis in seconds:')
     msg_list.append(print_to_string(desc_df.describe()))
+    msg_list.append(text_break())
+    msg_list.append('Non-consecutive timeseries:\t' + '\t'.join([str(len(dev_info[dev]['non_consecutive'])) for dev in dev_info]))
     check_label_text.set('\n'.join(msg_list))
 
     # enable export button
@@ -167,49 +183,69 @@ def read_logfiles():
 
 
 def export_data():
+
+    if int_combine_pickle.get() == 1:
+        export_combined_pickle()
+
     export_text_list = []
     for dev in dev_info:
-        data = dev_info[dev]['data']
+        data_raw = dev_info[dev]['data']
 
-
-        # reduce timestep if necessary
+        # reduce timestep if option chosen
         if int_change_timestep.get() == 1:
             new_timestep = entry_timestep.get()+'s'
-            data = data.resample(new_timestep).mean()
+            data_raw = data_raw.resample(new_timestep).mean()
 
-        # generate the filename
-        first_timestamp = data.index[0].strftime('%y%m%d_%H%M%S')
-        last_timestamp = data.index[-1].strftime('%y%m%d_%H%M%S')
-        filename = "-".join([dev_info[dev]['type'], dev_info[dev]['sn'], 'export', first_timestamp, 'to', last_timestamp])
+        # separate non consecutive timeseries if option chosen
+        if int_separate_nonconsecutive.get() == 1:
+            datas = separate_non_consecutives(data_raw, dev_info[dev]['non_consecutive'])
+        else:
+            datas = [data_raw]
 
-        # check if pickle save
-        if int_store_pickle.get() == 1:
-            data.to_pickle(filename+".pkl")
+        for data in datas:
+            # generate the filename
+            first_timestamp = data.index[0].strftime('%y%m%d_%H%M%S')
+            last_timestamp = data.index[-1].strftime('%y%m%d_%H%M%S')
+            filename = "-".join([dev_info[dev]['type'], dev_info[dev]['sn'], 'export', first_timestamp, 'to', last_timestamp])
 
-        if int_store_excel.get() == 1:
-            # check if MET timestamp conversion
-            if int_convert_MET_timestamp.get() == 1:
-                data['timestamp_MET-MEST'] = data.index.tz_convert('Europe/Vienna')
+            # check if pickle save
+            if int_store_pickle.get() == 1:
+                data.to_pickle(filename+".pkl")
 
-            # check if UNIX int to be added
-            if int_add_UNIX_int.get() == 1:
-                data['timestamp_UNIX'] = (data.index - pd.Timestamp("1970-01-01", tz='UTC')) // pd.Timedelta('1s')
+            if int_store_excel.get() == 1:
+                # check if MET timestamp conversion
+                if int_convert_MET_timestamp.get() == 1:
+                    data['timestamp_MET-MEST'] = data.index.tz_convert('Europe/Vienna')
 
-            # check if EXCEL timestamp
-            if int_add_EXCEL_UTC_timestamp.get() == 1:
-                data['timestamp_EXCEL_UTC'] = (((data.index - pd.Timestamp("1970-01-01", tz='UTC')) // pd.Timedelta('1s')) / 86400) + 25569
+                # check if UNIX int to be added
+                if int_add_UNIX_int.get() == 1:
+                    data['timestamp_UNIX'] = (data.index - pd.Timestamp("1970-01-01", tz='UTC')) // pd.Timedelta('1s')
 
-            # check if EXCEL MET timestamp
-            if int_add_EXCEL_MET_timestamp.get() == 1:
-                timestamp_met = data.index[0].tz_convert('Europe/Vienna')
-                utc_offset = timestamp_met.utcoffset().seconds
-                data['timestamp_EXCEL_MET-MEST'] = (((data.index - pd.Timestamp("1970-01-01", tz='UTC')) // pd.Timedelta('1s') + utc_offset) / 86400) + 25569
+                # check if EXCEL timestamp
+                if int_add_EXCEL_UTC_timestamp.get() == 1:
+                    data['timestamp_EXCEL_UTC'] = (((data.index - pd.Timestamp("1970-01-01", tz='UTC')) // pd.Timedelta('1s')) / 86400) + 25569
 
-            # write csv file
-            data.to_csv(filename+".csv")
+                # check if EXCEL MET timestamp
+                if int_add_EXCEL_MET_timestamp.get() == 1:
+                    timestamp_met = data.index[0].tz_convert('Europe/Vienna')
+                    utc_offset = timestamp_met.utcoffset().seconds
+                    data['timestamp_EXCEL_MET-MEST'] = (((data.index - pd.Timestamp("1970-01-01", tz='UTC')) // pd.Timedelta('1s') + utc_offset) / 86400) + 25569
+
+                # write csv file
+                data.to_csv(filename+".csv")
 
         export_text_list.append(filename + ' exported.')
     export_label_text.set('\n'.join(export_text_list))
+
+
+def separate_non_consecutives(data, timestamps):
+    data_list = []
+    ts_start = data.index[0]
+    for ts in timestamps:
+        new_df = data.loc[ts_start:ts][:-1]
+        data_list.append(new_df)
+        ts_start = ts
+    return data_list
 
 
 def open_logfile_folder():
@@ -219,6 +255,12 @@ def open_logfile_folder():
 
 def test_something():
     pass
+
+
+def export_combined_pickle():
+    filename = 'dev_info-'+'-'.join(dev_info.keys())+'.pkl'
+    with open (filename, 'wb') as f:
+        pickle.dump(dev_info, f)
 
 
 root = tk.Tk()
@@ -299,9 +341,11 @@ cb_add_MET_timestamp = ttk.Checkbutton(export_option_frame, text='Add string MET
 cb_add_MET_timestamp.grid(row=3, column=0, sticky='W')
 
 int_separate_nonconsecutive = tk.IntVar(value=0)
-cb_separate_nonconsecutive = ttk.Checkbutton(export_option_frame, text="Separate non-consecutive timeseries (timedelta > 10s)", variable=int_separate_nonconsecutive)
+print(config)
+str_separate_nonconsecutive = tk.StringVar(value="Separate non-consecutive timeseries (timedelta > {}s)".format(10))
+cb_separate_nonconsecutive = ttk.Checkbutton(export_option_frame, textvariable=str_separate_nonconsecutive, variable=int_separate_nonconsecutive)
 cb_separate_nonconsecutive.grid(row=0, column=1, sticky="W")
-cb_separate_nonconsecutive.configure(state='disabled')
+# cb_separate_nonconsecutive.configure(state='disabled')
 
 timestep_frame = tk.Frame(export_option_frame)
 timestep_frame.grid(row=1, column=1, sticky="W")
@@ -317,11 +361,13 @@ int_store_pickle = tk.IntVar(value=0)
 cb_store_pickle = ttk.Checkbutton(export_option_frame, text="Export pickle", variable=int_store_pickle)
 cb_store_pickle.grid(row=2, column=1, sticky="W")
 
+int_combine_pickle = tk.IntVar(value=0)
+cb_combine_pickle = ttk.Checkbutton(export_option_frame, text="Export combined pickle", variable=int_combine_pickle)
+cb_combine_pickle.grid(row=4, column=1, sticky="W")
+
 int_store_excel = tk.IntVar(value=1)
 cb_store_excel = ttk.Checkbutton(export_option_frame, text="Export excel", variable=int_store_excel)
 cb_store_excel.grid(row=3, column=1, sticky="W")
-
-
 
 export_btn_frame = ttk.Frame(root, style='btn_frame.TFrame')
 export_btn_frame.grid(column=1, row=5, sticky="NSEW")

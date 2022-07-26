@@ -1,4 +1,5 @@
 {
   "logfile_folder": "logfiles/",
-  "logfile_def_file": "source\\logfile_def.json"
+  "logfile_def_file": "source\\logfile_def.json",
+  "consecutive_threshold": 15
 }
