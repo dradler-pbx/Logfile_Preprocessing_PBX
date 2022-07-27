@@ -2,35 +2,34 @@ import time
 import tkinter as tk
 from tkinter import ttk
 
-import numpy as np
+from numpy import nan
 from PIL import Image, ImageTk
-import json
+from json import load
 import pandas as pd
-import os
-import subprocess
-import io
-import pickle
-
+from os import getcwd, path, listdir
+from subprocess import Popen
+from io import StringIO
+from pickle import dump as pkl_dump
 
 dev_info = {}
 logfiles = []
 config = {}
 logfile_def = {}
-root_path = os.getcwd()
-config_json_path = os.path.join(root_path, "source", "config.json")
-logfile_def_path = os.path.join(root_path, "source", "logfile_def.json")
+root_path = getcwd()
+config_json_path = path.join(root_path, "source", "config.json")
+logfile_def_path = path.join(root_path, "source", "logfile_def.json")
 
 def load_config_file():
     global config, logfile_def
 
     with open(config_json_path, "r") as f:
-        config = json.load(f)
+        config = load(f)
     for key in config:
         if type(config[key]) == str:
             config[key].replace("\\", '/')
 
     with open(logfile_def_path, "r") as f:
-        logfile_def = json.load(f)
+        logfile_def = load(f)
 
     str_separate_nonconsecutive.set("Separate non-consecutive timeseries (timedelta > {}s)".format(config["consecutive_threshold"]))
 
@@ -40,7 +39,7 @@ def text_break(break_before: str = ""):
 
 
 def print_to_string(*args, **kwargs):
-    output = io.StringIO()
+    output = StringIO()
     print(*args, file=output, **kwargs)
     contents = output.getvalue()
     output.close()
@@ -48,8 +47,8 @@ def print_to_string(*args, **kwargs):
 
 
 def open_config():
-    path = os.getcwd()
-    subprocess.Popen('notepad.exe '+config_json_path).wait()
+    path = getcwd()
+    Popen('notepad.exe '+config_json_path).wait()
 
     # replace any "\" with "/" in the file
     with open(config_json_path, "r") as f:
@@ -63,7 +62,7 @@ def open_config():
 
 
 def get_logfile_list():
-    return sorted(os.listdir(config['logfile_folder']))
+    return sorted(listdir(config['logfile_folder']))
 
 
 def check_logfiles():
@@ -136,7 +135,7 @@ def read_logfiles():
         df_list = []
 
         for file in dev_info[dev]['files']:
-            filepath = os.path.join(config['logfile_folder'], file)
+            filepath = path.join(config['logfile_folder'], file)
             df = pd.read_csv(filepath, sep=";")
             df_list.append(df)
 
@@ -153,7 +152,7 @@ def read_logfiles():
         data = data.set_index('timestamp_UTC')
 
         # replace 'T' and 'F' with True and False and Nan with np.nan
-        data.replace({'T': True, 'F': False, 'NaN': np.nan}, inplace=True)
+        data.replace({'T': True, 'F': False, 'NaN': nan}, inplace=True)
 
         # append the data into the dictionary
         dev_info[dev]['data'] = data
@@ -215,7 +214,7 @@ def export_data():
             first_timestamp = data.index[0].strftime('%y%m%d_%H%M%S')
             last_timestamp = data.index[-1].strftime('%y%m%d_%H%M%S')
             filename = "-".join([dev_info[dev]['type'], dev_info[dev]['sn'], 'export', first_timestamp, 'to', last_timestamp])
-            filepath = os.path.join(config['export_folder'] + '/' + filename)
+            filepath = path.join(config['export_folder'] + '/' + filename)
 
             # check if pickle save
             if int_store_pickle.get() == 1:
@@ -258,8 +257,8 @@ def separate_non_consecutives(data, timestamps):
 
 
 def open_logfile_folder():
-    command = 'explorer '+os.path.abspath(config['logfile_folder']+'/"')
-    subprocess.Popen(command)
+    command = 'explorer '+path.abspath(config['logfile_folder']+'/"')
+    Popen(command)
 
 
 def test_something():
@@ -268,9 +267,9 @@ def test_something():
 
 def export_combined_pickle():
     filename = 'dev_info-'+'-'.join(dev_info.keys())+'.pkl'
-    filename = os.path.join(config['export_folder']+'/', filename)
+    filename = path.join(config['export_folder']+'/', filename)
     with open (filename, 'wb') as f:
-        pickle.dump(dev_info, f)
+        pkl_dump(dev_info, f)
 
 
 root = tk.Tk()
@@ -296,7 +295,7 @@ btn_style.configure('btn.TButton', padding="4p")
 btn_frame_style = ttk.Style()
 btn_frame_style.configure('btn_frame.TFrame', padding="4p")
 
-logo = ImageTk.PhotoImage(Image.open(os.path.join(root_path, 'source', 'PBX_Logo_black_small.png')))
+logo = ImageTk.PhotoImage(Image.open(path.join(root_path, 'source', 'PBX_Logo_black_small.png')))
 header = ttk.Label(root, image=logo, style='header.TLabel')
 header.grid(column=0, row=0, columnspan=2, sticky="E")
 #
