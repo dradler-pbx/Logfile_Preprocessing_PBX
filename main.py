@@ -164,11 +164,9 @@ def read_logfiles():
         # check if non consecutive timeseries
         idx_diff = data.index.to_series().diff().dt.total_seconds()
         indices = data[idx_diff > config["consecutive_threshold"]].index
-        # print(data.index[-1])
         last_idx = pd.Index([data.index[-1]])
         indices = indices.append([last_idx])
         dev_info[dev]['non_consecutive'] = indices
-        print(dev_info[dev]['non_consecutive'])
 
 
 
@@ -198,10 +196,7 @@ def export_data():
     for dev in dev_info:
         data_raw = dev_info[dev]['data']
 
-        # reduce timestep if option chosen
-        if int_change_timestep.get() == 1:
-            new_timestep = entry_timestep.get()+'s'
-            data_raw = data_raw.resample(new_timestep).mean()
+
 
         # separate non consecutive timeseries if option chosen
         if int_separate_nonconsecutive.get() == 1:
@@ -210,14 +205,21 @@ def export_data():
             datas = [data_raw]
 
         for data in datas:
+
+            # reduce timestep if option chosen
+            if int_change_timestep.get() == 1:
+                new_timestep = entry_timestep.get() + 's'
+                data_raw = data_raw.resample(new_timestep).mean()
+
             # generate the filename
             first_timestamp = data.index[0].strftime('%y%m%d_%H%M%S')
             last_timestamp = data.index[-1].strftime('%y%m%d_%H%M%S')
-            filename = "-".join([dev_info[dev]['type'], dev_info[dev]['sn'], 'export', first_timestamp, 'to', last_timestamp])+".csv"
+            filename = "-".join([dev_info[dev]['type'], dev_info[dev]['sn'], 'export', first_timestamp, 'to', last_timestamp])
+            filepath = os.path.join(config['export_folder'] + '/' + filename)
 
             # check if pickle save
             if int_store_pickle.get() == 1:
-                data.to_pickle(filename+".pkl")
+                data.to_pickle(filepath+".pkl")
 
             if int_store_excel.get() == 1:
                 # check if MET timestamp conversion
@@ -239,7 +241,7 @@ def export_data():
                     data['timestamp_EXCEL_MET-MEST'] = (((data.index - pd.Timestamp("1970-01-01", tz='UTC')) // pd.Timedelta('1s') + utc_offset) / 86400) + 25569
 
                 # write csv file
-                data.to_csv(os.path.join(config['export_folder']+filename))
+                data.to_csv(filepath+'.csv')
 
         export_text_list.append(filename + ' exported.')
     export_label_text.set('\n'.join(export_text_list))
@@ -266,6 +268,7 @@ def test_something():
 
 def export_combined_pickle():
     filename = 'dev_info-'+'-'.join(dev_info.keys())+'.pkl'
+    filename = os.path.join(config['export_folder']+'/', filename)
     with open (filename, 'wb') as f:
         pickle.dump(dev_info, f)
 
@@ -293,7 +296,7 @@ btn_style.configure('btn.TButton', padding="4p")
 btn_frame_style = ttk.Style()
 btn_frame_style.configure('btn_frame.TFrame', padding="4p")
 
-logo = ImageTk.PhotoImage(Image.open(os.path.join(root_path, 'source/PBX_Logo_black_small.png')))
+logo = ImageTk.PhotoImage(Image.open(os.path.join(root_path, 'source', 'PBX_Logo_black_small.png')))
 header = ttk.Label(root, image=logo, style='header.TLabel')
 header.grid(column=0, row=0, columnspan=2, sticky="E")
 #
