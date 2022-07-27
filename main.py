@@ -208,7 +208,7 @@ def export_data():
             # reduce timestep if option chosen
             if int_change_timestep.get() == 1:
                 new_timestep = entry_timestep.get() + 's'
-                data_raw = data_raw.resample(new_timestep).mean()
+                data = data.resample(new_timestep).mean()
 
             # generate the filename
             first_timestamp = data.index[0].strftime('%y%m%d_%H%M%S')
