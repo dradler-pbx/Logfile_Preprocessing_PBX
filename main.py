@@ -20,12 +20,11 @@ logfile_def = {}
 
 def load_config_file():
     global config, logfile_def
-    with open('source/config.json', "r") as f:
+    with open("C:\\Users\\dominik\\PycharmProjects\\Logfile_Preprocessing_PBX\\source\\config.json", "r") as f:
         config = json.load(f)
     for key in config:
         if type(config[key]) == str:
             config[key].replace("\\", '/')
-
 
     with open(config['logfile_def_file']) as f:
         logfile_def = json.load(f)
@@ -129,7 +128,7 @@ def read_logfiles():
         df_list = []
 
         for file in dev_info[dev]['files']:
-            filepath = config["logfile_folder"] + file
+            filepath = config["logfile_folder"] + "\\"+file
             df = pd.read_csv(filepath, sep=";")
             df_list.append(df)
 
@@ -249,8 +248,8 @@ def separate_non_consecutives(data, timestamps):
 
 
 def open_logfile_folder():
-    path = os.getcwd()
-    subprocess.Popen(r'explorer '+path+'\\'+config['logfile_folder'])
+    # path = os.getcwd()
+    subprocess.Popen(r'explorer '+config['logfile_folder'])
 
 
 def test_something():
@@ -288,8 +287,11 @@ btn_style.configure('btn.TButton', padding="4p")
 btn_frame_style = ttk.Style()
 btn_frame_style.configure('btn_frame.TFrame', padding="4p")
 
-logo = ImageTk.PhotoImage(Image.open('source/PBX_Logo_black_small.png'))
-header = ttk.Label(root, image=logo, style='header.TLabel')
+# logo = ImageTk.PhotoImage(Image.open('source/PBX_Logo_black_small.png'))
+# header = ttk.Label(root, image=logo, style='header.TLabel')
+# header.grid(column=0, row=0, columnspan=2, sticky="E")
+#
+header = ttk.Label(root, text="header", style='header.TLabel')
 header.grid(column=0, row=0, columnspan=2, sticky="E")
 
 sep1 = ttk.Separator(root, orient='horizontal')

@@ -1,5 +1,5 @@
 {
-  "logfile_folder": "logfiles/",
-  "logfile_def_file": "source\\logfile_def.json",
+  "logfile_folder": "C:\\Users\\dominik\\PycharmProjects\\Logfile_Preprocessing_PBX\\logfiles",
+  "logfile_def_file": "C:\\Users\\dominik\\PycharmProjects\\Logfile_Preprocessing_PBX\\source\\logfile_def.json",
   "consecutive_threshold": 15
 }
