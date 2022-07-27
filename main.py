@@ -275,6 +275,8 @@ def export_combined_pickle():
 root = tk.Tk()
 root.geometry("800x800")
 # root.resizable(False, False)
+root.title('pbx Logfile Preprocessing')
+root.iconbitmap(path.join(root_path,'source', 'PBX_Logo_black_icon.ico'))
 
 root.columnconfigure(0, weight=6)
 root.rowconfigure(2, weight=3)
