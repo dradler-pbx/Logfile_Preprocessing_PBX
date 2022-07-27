@@ -16,17 +16,20 @@ dev_info = {}
 logfiles = []
 config = {}
 logfile_def = {}
-
+root_path = os.getcwd()
+config_json_path = os.path.join(root_path, "source", "config.json")
+logfile_def_path = os.path.join(root_path, "source", "logfile_def.json")
 
 def load_config_file():
     global config, logfile_def
-    with open("C:\\Users\\dominik\\PycharmProjects\\Logfile_Preprocessing_PBX\\source\\config.json", "r") as f:
+
+    with open(config_json_path, "r") as f:
         config = json.load(f)
     for key in config:
         if type(config[key]) == str:
             config[key].replace("\\", '/')
 
-    with open(config['logfile_def_file']) as f:
+    with open(logfile_def_path, "r") as f:
         logfile_def = json.load(f)
 
     str_separate_nonconsecutive.set("Separate non-consecutive timeseries (timedelta > {}s)".format(config["consecutive_threshold"]))
@@ -46,7 +49,15 @@ def print_to_string(*args, **kwargs):
 
 def open_config():
     path = os.getcwd()
-    subprocess.Popen('notepad.exe '+path+'\\source\\config.json').wait()
+    subprocess.Popen('notepad.exe '+config_json_path).wait()
+
+    # replace any "\" with "/" in the file
+    with open(config_json_path, "r") as f:
+        fdata = f.read()
+    fdata = fdata.replace("\\", "/")
+    with open(config_json_path, "w") as f:
+        f.write(fdata)
+
     load_config_file()
     check_label_text.set('Config File updated and reloaded!')
 
@@ -58,9 +69,6 @@ def get_logfile_list():
 def check_logfiles():
     global dev_info, logfiles
     logfiles = get_logfile_list()
-
-    # check if the logfiles are all from the same system etc.
-    first_run = True
 
     for file in logfiles:
         file_array = file.split(".")[0]
@@ -128,7 +136,7 @@ def read_logfiles():
         df_list = []
 
         for file in dev_info[dev]['files']:
-            filepath = config["logfile_folder"] + "\\"+file
+            filepath = os.path.join(config['logfile_folder'], file)
             df = pd.read_csv(filepath, sep=";")
             df_list.append(df)
 
@@ -205,7 +213,7 @@ def export_data():
             # generate the filename
             first_timestamp = data.index[0].strftime('%y%m%d_%H%M%S')
             last_timestamp = data.index[-1].strftime('%y%m%d_%H%M%S')
-            filename = "-".join([dev_info[dev]['type'], dev_info[dev]['sn'], 'export', first_timestamp, 'to', last_timestamp])
+            filename = "-".join([dev_info[dev]['type'], dev_info[dev]['sn'], 'export', first_timestamp, 'to', last_timestamp])+".csv"
 
             # check if pickle save
             if int_store_pickle.get() == 1:
@@ -231,7 +239,7 @@ def export_data():
                     data['timestamp_EXCEL_MET-MEST'] = (((data.index - pd.Timestamp("1970-01-01", tz='UTC')) // pd.Timedelta('1s') + utc_offset) / 86400) + 25569
 
                 # write csv file
-                data.to_csv(filename+".csv")
+                data.to_csv(os.path.join(config['export_folder']+filename))
 
         export_text_list.append(filename + ' exported.')
     export_label_text.set('\n'.join(export_text_list))
@@ -248,8 +256,8 @@ def separate_non_consecutives(data, timestamps):
 
 
 def open_logfile_folder():
-    # path = os.getcwd()
-    subprocess.Popen(r'explorer '+config['logfile_folder'])
+    command = 'explorer '+os.path.abspath(config['logfile_folder']+'/"')
+    subprocess.Popen(command)
 
 
 def test_something():
@@ -267,10 +275,8 @@ root.geometry("800x800")
 # root.resizable(False, False)
 
 root.columnconfigure(0, weight=6)
-root.rowconfigure(0)
 root.rowconfigure(2, weight=3)
-root.rowconfigure(4)
-root.rowconfigure(6)
+
 
 check_label_text = tk.StringVar(value='Check label text...')
 export_label_text = tk.StringVar(value='Export label text...')
@@ -287,12 +293,12 @@ btn_style.configure('btn.TButton', padding="4p")
 btn_frame_style = ttk.Style()
 btn_frame_style.configure('btn_frame.TFrame', padding="4p")
 
-# logo = ImageTk.PhotoImage(Image.open('source/PBX_Logo_black_small.png'))
-# header = ttk.Label(root, image=logo, style='header.TLabel')
-# header.grid(column=0, row=0, columnspan=2, sticky="E")
-#
-header = ttk.Label(root, text="header", style='header.TLabel')
+logo = ImageTk.PhotoImage(Image.open(os.path.join(root_path, 'source/PBX_Logo_black_small.png')))
+header = ttk.Label(root, image=logo, style='header.TLabel')
 header.grid(column=0, row=0, columnspan=2, sticky="E")
+#
+# header = ttk.Label(root, text="header", style='header.TLabel')
+# header.grid(column=0, row=0, columnspan=2, sticky="E")
 
 sep1 = ttk.Separator(root, orient='horizontal')
 sep1.grid(row=1, column=0, columnspan=2, sticky="EW")
@@ -343,7 +349,6 @@ cb_add_MET_timestamp = ttk.Checkbutton(export_option_frame, text='Add string MET
 cb_add_MET_timestamp.grid(row=3, column=0, sticky='W')
 
 int_separate_nonconsecutive = tk.IntVar(value=0)
-print(config)
 str_separate_nonconsecutive = tk.StringVar(value="Separate non-consecutive timeseries (timedelta > {}s)".format(10))
 cb_separate_nonconsecutive = ttk.Checkbutton(export_option_frame, textvariable=str_separate_nonconsecutive, variable=int_separate_nonconsecutive)
 cb_separate_nonconsecutive.grid(row=0, column=1, sticky="W")
