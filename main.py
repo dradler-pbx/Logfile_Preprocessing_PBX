@@ -1,7 +1,6 @@
 import time
 import tkinter as tk
 from tkinter import ttk
-
 from numpy import nan
 from PIL import Image, ImageTk
 from json import load
@@ -10,6 +9,7 @@ from os import getcwd, path, listdir
 from subprocess import Popen
 from io import StringIO
 from pickle import dump as pkl_dump
+from tqdm import tqdm
 
 dev_info = {}
 logfiles = []
@@ -67,6 +67,7 @@ def get_logfile_list():
 
 def check_logfiles():
     global dev_info, logfiles
+    dev_info = dict()
     logfiles = get_logfile_list()
 
     for file in logfiles:
@@ -102,6 +103,8 @@ def check_logfiles():
     msg = '\n'.join(msg)
     check_label_text.set(msg)
 
+    print(dev_info)
+
     read_btn.configure(state='!disabled')
 
 
@@ -133,33 +136,40 @@ def read_logfiles():
         check_label_text.set('\n'.join(msg_list))
 
         df_list = []
-
-        for file in dev_info[dev]['files']:
+        print('Reading '+dev)
+        for file in tqdm(dev_info[dev]['files']):
             filepath = path.join(config['logfile_folder'], file)
             df = pd.read_csv(filepath, sep=";")
             df_list.append(df)
 
+        print('Converting to DataFrame...')
         # concatenate the list of df to one single df
         data = pd.concat(df_list, axis=0, ignore_index=True)
 
+        print('Exchange header...')
         # exchange the header with clear name header
         data.columns = exchange_header(data.columns, dev_info[dev]['lf'])
 
+        print('Convert timestamp...')
         # convert timestamp to datetime and set as index
         data['timestamp_UNIXms'] = pd.to_datetime(data['timestamp_UNIXms'], unit='ms')
         data.rename(columns={'timestamp_UNIXms': 'timestamp_UTC'}, inplace=True)
         data['timestamp_UTC'] = data['timestamp_UTC'].dt.tz_localize('UTC')
         data = data.set_index('timestamp_UTC')
 
+        print('Replace "T" and "F" and NaN values')
         # replace 'T' and 'F' with True and False and Nan with np.nan
         data.replace({'T': True, 'F': False, 'NaN': nan}, inplace=True)
 
+        print('Appending to dict...')
         # append the data into the dictionary
         dev_info[dev]['data'] = data
 
+        print('Append index to analysis DataFrame...')
         # append the index to the desc_df
         desc_df[dev] = data.index.to_series().diff().dt.total_seconds()
 
+        print('Check if timeseries are non-consecutive...')
         # check if non consecutive timeseries
         idx_diff = data.index.to_series().diff().dt.total_seconds()
         indices = data[idx_diff > config["consecutive_threshold"]].index
@@ -167,6 +177,7 @@ def read_logfiles():
         indices = indices.append([last_idx])
         dev_info[dev]['non_consecutive'] = indices
 
+        print('Done!')
 
 
     # activate export button
@@ -189,16 +200,16 @@ def read_logfiles():
 def export_data():
 
     if int_combine_pickle.get() == 1:
+        print('Export combined pickle...')
         export_combined_pickle()
 
     export_text_list = []
     for dev in dev_info:
         data_raw = dev_info[dev]['data']
 
-
-
         # separate non consecutive timeseries if option chosen
         if int_separate_nonconsecutive.get() == 1:
+            print('Separating non-consecutive timeseries')
             datas = separate_non_consecutives(data_raw, dev_info[dev]['non_consecutive'])
         else:
             datas = [data_raw]
@@ -207,6 +218,7 @@ def export_data():
 
             # reduce timestep if option chosen
             if int_change_timestep.get() == 1:
+                print('Changing timestep...')
                 new_timestep = entry_timestep.get() + 's'
                 data = data.resample(new_timestep).mean()
 
@@ -218,23 +230,28 @@ def export_data():
 
             # check if pickle save
             if int_store_pickle.get() == 1:
+                print('Save separate pickle files...')
                 data.to_pickle(filepath+".pkl")
 
             if int_store_excel.get() == 1:
                 # check if MET timestamp conversion
                 if int_convert_MET_timestamp.get() == 1:
+                    print('Appending MET string...')
                     data['timestamp_MET-MEST'] = data.index.tz_convert('Europe/Vienna')
 
                 # check if UNIX int to be added
                 if int_add_UNIX_int.get() == 1:
+                    print('Appending UNIX timestamp...')
                     data['timestamp_UNIX'] = (data.index - pd.Timestamp("1970-01-01", tz='UTC')) // pd.Timedelta('1s')
 
                 # check if EXCEL timestamp
                 if int_add_EXCEL_UTC_timestamp.get() == 1:
+                    print('Appending UTC Excel timestamp...')
                     data['timestamp_EXCEL_UTC'] = (((data.index - pd.Timestamp("1970-01-01", tz='UTC')) // pd.Timedelta('1s')) / 86400) + 25569
 
                 # check if EXCEL MET timestamp
                 if int_add_EXCEL_MET_timestamp.get() == 1:
+                    print('Appending MET Excel timestamp...')
                     timestamp_met = data.index[0].tz_convert('Europe/Vienna')
                     utc_offset = timestamp_met.utcoffset().seconds
                     data['timestamp_EXCEL_MET-MEST'] = (((data.index - pd.Timestamp("1970-01-01", tz='UTC')) // pd.Timedelta('1s') + utc_offset) / 86400) + 25569
@@ -243,6 +260,7 @@ def export_data():
                 data.to_csv(filepath+'.csv')
 
         export_text_list.append(filename + ' exported.')
+        print('Done!')
     export_label_text.set('\n'.join(export_text_list))
 
 
