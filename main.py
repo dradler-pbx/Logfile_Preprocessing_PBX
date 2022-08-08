@@ -100,11 +100,13 @@ def check_logfiles():
         msg.append('Last file: {}'.format(last_timestamp))
         msg.append(text_break())
 
+    msg.append('Files checked, ready to read.')
+    msg.append(text_break())
     msg = '\n'.join(msg)
+
     check_label_text.set(msg)
 
-    print(dev_info)
-
+    print('Files checked, ready to read.')
     read_btn.configure(state='!disabled')
 
 
