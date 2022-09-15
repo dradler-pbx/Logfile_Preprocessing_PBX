@@ -1,5 +1,5 @@
 {
-  "logfile_folder": "C:/Users/dominik/Documents/logfiles/Testseries2/TS2",
-  "export_folder": "C:/Users/dominik/PycharmProjects/Logfile_Preprocessing_PBX/export",
+  "logfile_folder": "C:/Users/dominik/Downloads/T08_1",
+  "export_folder": "C:/Users/dominik/Downloads/export_logfiles",
   "consecutive_threshold": 15
 }

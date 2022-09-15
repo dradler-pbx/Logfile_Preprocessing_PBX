@@ -147,6 +147,7 @@ def read_logfiles():
         print('Converting to DataFrame...')
         # concatenate the list of df to one single df
         data = pd.concat(df_list, axis=0, ignore_index=True)
+        df_list.clear()
 
         print('Exchange header...')
         # exchange the header with clear name header
